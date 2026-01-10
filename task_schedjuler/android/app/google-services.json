@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "373070812542",
+    "project_id": "task-5b6ff",
+    "storage_bucket": "task-5b6ff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:373070812542:android:71064f94edcbcc27070f2f",
+        "android_client_info": {
+          "package_name": "com.example.task_schedjuler"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDIYOBM8pGT-cPGu-R0k2rEhXKlOkiWedk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

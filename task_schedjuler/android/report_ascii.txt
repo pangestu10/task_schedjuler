@@ -1,0 +1,57 @@
+> Task :gradle:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+
+> Task :app:signingReport
+Variant: debug
+Config: debug
+Store: C:\Users\maspa\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: C3:86:27:43:D5:0E:4D:76:DC:93:11:B9:4F:53:9D:84
+SHA1: 38:31:D2:8A:B9:50:1C:BD:95:D4:D5:84:B4:6A:0F:73:74:7F:15:97
+SHA-256: ED:E4:50:F5:07:34:2D:3A:50:BC:B7:B2:4A:EA:9A:D7:F2:31:C0:BA:FB:6E:2E:2B:B3:E4:4B:0C:89:41:1E:1E
+Valid until: Thursday, November 25, 2055
+----------
+Variant: release
+Config: debug
+Store: C:\Users\maspa\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: C3:86:27:43:D5:0E:4D:76:DC:93:11:B9:4F:53:9D:84
+SHA1: 38:31:D2:8A:B9:50:1C:BD:95:D4:D5:84:B4:6A:0F:73:74:7F:15:97
+SHA-256: ED:E4:50:F5:07:34:2D:3A:50:BC:B7:B2:4A:EA:9A:D7:F2:31:C0:BA:FB:6E:2E:2B:B3:E4:4B:0C:89:41:1E:1E
+Valid until: Thursday, November 25, 2055
+----------
+Variant: profile
+Config: debug
+Store: C:\Users\maspa\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: C3:86:27:43:D5:0E:4D:76:DC:93:11:B9:4F:53:9D:84
+SHA1: 38:31:D2:8A:B9:50:1C:BD:95:D4:D5:84:B4:6A:0F:73:74:7F:15:97
+SHA-256: ED:E4:50:F5:07:34:2D:3A:50:BC:B7:B2:4A:EA:9A:D7:F2:31:C0:BA:FB:6E:2E:2B:B3:E4:4B:0C:89:41:1E:1E
+Valid until: Thursday, November 25, 2055
+----------
+Variant: debugAndroidTest
+Config: debug
+Store: C:\Users\maspa\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: C3:86:27:43:D5:0E:4D:76:DC:93:11:B9:4F:53:9D:84
+SHA1: 38:31:D2:8A:B9:50:1C:BD:95:D4:D5:84:B4:6A:0F:73:74:7F:15:97
+SHA-256: ED:E4:50:F5:07:34:2D:3A:50:BC:B7:B2:4A:EA:9A:D7:F2:31:C0:BA:FB:6E:2E:2B:B3:E4:4B:0C:89:41:1E:1E
+Valid until: Thursday, November 25, 2055
+----------
+
+[Incubating] Problems report is available at: file:///D:/kuliah/task_schedjuler/task_schedjuler/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 3s
+5 actionable tasks: 1 executed, 4 up-to-date
