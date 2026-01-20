@@ -93,10 +93,6 @@ class AIService {
   }
 
   Future<List<String>> generateTaskSteps(String taskTitle) async {
-    if (!hasValidApiKey) {
-      return _getDefaultTaskSteps(taskTitle);
-    }
-    
     try {
       final response = await _dio.post(
         '$_baseUrl/chat/completions',
@@ -172,46 +168,11 @@ class AIService {
   Map<String, dynamic> _getDefaultInsights() {
     return {
       'performanceInsights': [
-        'Anda mempertahankan konsistensi dalam alur kerja.',
-        'Perencanaan Anda menunjukkan struktur yang baik.'
+        'You\'re maintaining consistency in your workflow.',
+        'Your planning shows good structure.'
       ],
-      'habitPattern': 'Anda cenderung bekerja selama jam yang dijadwalkan.',
-      'gentleSuggestion': 'Pertimbangkan untuk mengambil jeda singkat antara sesi fokus.'
+      'habitPattern': 'You tend to work during your scheduled hours.',
+      'gentleSuggestion': 'Consider taking short breaks between focus sessions.'
     };
-  }
-  
-  List<String> _getDefaultTaskSteps(String taskTitle) {
-    // Return generic task steps based on common patterns
-    final lowerTitle = taskTitle.toLowerCase();
-    
-    if (lowerTitle.contains('belajar') || lowerTitle.contains('study')) {
-      return [
-        'Siapkan materi dan lingkungan belajar',
-        'Baca dan pahami konsep dasar',
-        'Praktikkan dengan latihan soal',
-        'Review dan catat poin penting'
-      ];
-    } else if (lowerTitle.contains('coding') || lowerTitle.contains('program')) {
-      return [
-        'Analisis requirement dan buat rencana',
-        'Tulis struktur kode dasar',
-        'Implementasikan fitur utama',
-        'Test dan debug aplikasi'
-      ];
-    } else if (lowerTitle.contains('olahraga') || lowerTitle.contains('exercise')) {
-      return [
-        'Lakukan pemanasan selama 5-10 menit',
-        'Lakukan latihan utama',
-        'Lakukan pendinginan',
-        'Minum air dan istirahat'
-      ];
-    } else {
-      return [
-        'Rencanakan langkah pertama',
-        'Kerjakan tugas utama',
-        'Review hasil kerja',
-        'Selesaikan dan dokumentasikan'
-      ];
-    }
   }
 }

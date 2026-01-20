@@ -14,7 +14,8 @@ class TimerService {
   Stream<int> get elapsedSecondsStream => 
       Stream.periodic(const Duration(seconds: 1), (_) => _elapsedSeconds);
   
-  void startTimer({required String userId, int? taskId, int initialDuration = 0}) {
+  // Changed taskId to String
+  void startTimer({required String userId, String? taskId, int initialDuration = 0}) {
     if (_timer != null) return;
     
     _accumulatedSeconds = initialDuration;

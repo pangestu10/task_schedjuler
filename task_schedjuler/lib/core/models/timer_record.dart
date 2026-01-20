@@ -3,7 +3,7 @@
 class TimerRecord {
   int? id;
   String userId;
-  int? taskId;
+  String? taskId; // Changed from int? to String?
   DateTime startTime;
   DateTime? endTime;
   int durationSeconds;
@@ -23,7 +23,7 @@ class TimerRecord {
   TimerRecord copyWith({
     int? id,
     String? userId,
-    int? taskId,
+    String? taskId,
     DateTime? startTime,
     DateTime? endTime,
     int? durationSeconds,
@@ -58,7 +58,7 @@ class TimerRecord {
     return TimerRecord(
       id: map['id']?.toInt(),
       userId: map['user_id'] ?? '',
-      taskId: map['task_id']?.toInt(),
+      taskId: map['task_id']?.toString(), // Handle both int (legacy) and String
       startTime: DateTime.parse(map['start_time']),
       endTime: map['end_time'] != null ? DateTime.parse(map['end_time']) : null,
       durationSeconds: map['duration_seconds']?.toInt() ?? 0,
@@ -107,7 +107,7 @@ class TimerRecord {
   bool get isCompleted => stopReason == 'completed';
 
   // Check if timer was stopped due to interruption
-  bool get wasInterrupted => stopReason == 'interrupted' || stopReason == 'lostFocus';
+  bool get wasInterrupted => stopReason == 'interrupted' || stopReason == 'lostFocus' || stopReason == 'take_a_break';
 
   // Check if timer has associated task
   bool get hasTask => taskId != null;
@@ -121,6 +121,8 @@ class TimerRecord {
         return 'Interrupted';
       case 'lostFocus':
         return 'Lost Focus';
+      case 'take_a_break':
+        return 'Break Taken';
       case 'manual':
         return 'Manual Stop';
       case 'running':
@@ -139,6 +141,8 @@ class TimerRecord {
         return '⏸️';
       case 'lostFocus':
         return '🔄';
+      case 'take_a_break':
+        return '☕';
       case 'manual':
         return '⏹️';
       case 'running':

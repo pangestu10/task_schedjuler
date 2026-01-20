@@ -5,8 +5,9 @@ import 'task_step.dart';
 import 'dart:convert';
 
 class Task {
-  int? id;
+  String? id;
   String userId;
+  String? ownerId; // New field
   String title;
   TaskPriority priority;
   DateTime? deadline;
@@ -18,10 +19,13 @@ class Task {
   bool isSelectedForToday;
   DateTime? selectedDate;
   List<TaskStep> steps;
+  List<String> collaborators;
+  List<String> pendingCollaborators; // New field
 
   Task({
     this.id,
     required this.userId,
+    this.ownerId,
     required this.title,
     required this.priority,
     this.deadline,
@@ -33,12 +37,15 @@ class Task {
     this.isSelectedForToday = false,
     this.selectedDate,
     this.steps = const [],
+    this.collaborators = const [],
+    this.pendingCollaborators = const [],
   });
 
   // Create a copy with updated values
   Task copyWith({
-    int? id,
+    String? id,
     String? userId,
+    String? ownerId,
     String? title,
     TaskPriority? priority,
     DateTime? deadline,
@@ -50,10 +57,13 @@ class Task {
     bool? isSelectedForToday,
     DateTime? selectedDate,
     List<TaskStep>? steps,
+    List<String>? collaborators,
+    List<String>? pendingCollaborators,
   }) {
     return Task(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      ownerId: ownerId ?? this.ownerId,
       title: title ?? this.title,
       priority: priority ?? this.priority,
       deadline: deadline ?? this.deadline,
@@ -65,14 +75,18 @@ class Task {
       isSelectedForToday: isSelectedForToday ?? this.isSelectedForToday,
       selectedDate: selectedDate ?? this.selectedDate,
       steps: steps ?? this.steps,
+      collaborators: collaborators ?? this.collaborators,
+      pendingCollaborators: pendingCollaborators ?? this.pendingCollaborators,
     );
   }
 
-  // Convert to map for database operations
+  // Convert to map for database operations (SQLite/Local)
+  // Maintaining backward compatibility for local DB if possible, but ID is now String
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'user_id': userId,
+      'owner_id': ownerId,
       'title': title,
       'priority': priority.name,
       'deadline': deadline?.toIso8601String(),
@@ -84,14 +98,34 @@ class Task {
       'is_selected_for_today': isSelectedForToday ? 1 : 0,
       'selected_date': selectedDate?.toIso8601String(),
       'steps': jsonEncode(steps.map((e) => e.toMap()).toList()),
+      'collaborators': jsonEncode(collaborators),
     };
   }
 
-  // Create from map for database operations
+  // Convert to JSON for API interactions
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      'ownerId': ownerId,
+      'title': title,
+      'priority': priority.name,
+      'deadline': deadline?.toIso8601String(),
+      'startDate': startDate?.toIso8601String(),
+      'estimatedMinutes': estimatedMinutes,
+      'status': status == TaskStatus.inProgress ? 'in_progress' : status.name,
+      'isSelectedForToday': isSelectedForToday,
+      'selectedDate': selectedDate?.toIso8601String(),
+      'steps': steps.map((e) => e.toMap()).toList(), // Send as array of objects
+      'tags': [], // Placeholder if needed
+    };
+  }
+
+  // Create from map (SQLite/Local)
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
-      id: map['id']?.toInt(),
+      id: map['id']?.toString(), // Handle if it was int in SQLite
       userId: map['user_id'] ?? '',
+      ownerId: map['owner_id'],
       title: map['title'] ?? '',
       priority: TaskPriority.values.firstWhere(
         (e) => e.name == map['priority'],
@@ -111,9 +145,62 @@ class Task {
       steps: map['steps'] != null 
           ? (jsonDecode(map['steps']) as List).map((e) => TaskStep.fromMap(e)).toList() 
           : [],
+      collaborators: map['collaborators'] != null
+          ? List<String>.from(jsonDecode(map['collaborators']))
+          : [],
     );
   }
 
+  // Helper to parse dates from Firestore (which might be ISO Strings or {_seconds, _nanoseconds})
+  static DateTime _parseDate(dynamic dateVal) {
+    if (dateVal == null) return DateTime.now(); // Fallback
+    if (dateVal is String) return DateTime.parse(dateVal);
+    if (dateVal is Map && dateVal.containsKey('_seconds')) {
+      final int seconds = dateVal['_seconds'];
+      final int nanoseconds = dateVal['_nanoseconds'] ?? 0;
+      return DateTime.fromMillisecondsSinceEpoch(seconds * 1000 + (nanoseconds ~/ 1000000));
+    }
+    return DateTime.now();
+  }
+
+  // Create from JSON (Backend API)
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      id: json['id'],
+      userId: json['userId'] ?? '',
+      ownerId: json['ownerId'] ?? json['userId'], // Fallback for old tasks
+      title: json['title'] ?? '',
+      priority: TaskPriority.values.firstWhere(
+        (e) => e.name == json['priority'],
+        orElse: () => TaskPriority.medium,
+      ),
+      deadline: json['deadline'] != null ? _parseDate(json['deadline']) : null,
+      startDate: json['startDate'] != null ? _parseDate(json['startDate']) : null,
+      estimatedMinutes: json['estimatedMinutes']?.toInt() ?? 0,
+      status: json['status'] == 'in_progress' 
+          ? TaskStatus.inProgress
+          : TaskStatus.values.firstWhere(
+              (e) => e.name == json['status'],
+              orElse: () => TaskStatus.todo,
+            ),
+      createdAt: json['created_at'] != null ? _parseDate(json['created_at']) : (json['createdAt'] != null ? _parseDate(json['createdAt']) : DateTime.now()),
+      updatedAt: json['updatedAt'] != null ? _parseDate(json['updatedAt']) : null,
+      isSelectedForToday: json['isSelectedForToday'] == true,
+      selectedDate: json['selectedDate'] != null ? _parseDate(json['selectedDate']) : null,
+      steps: json['steps'] != null 
+          ? (json['steps'] as List).map((e) => TaskStep.fromMap(e)).toList() 
+          : [],
+      collaborators: json['collaborators'] != null
+          ? List<String>.from(json['collaborators'])
+          : [],
+      pendingCollaborators: json['pendingCollaborators'] != null
+          ? List<String>.from(json['pendingCollaborators'])
+          : [],
+    );
+  }
+
+  // ... (Keep existing methods: isOverdue, priorityColor, etc.)
+  
   // Check if task is overdue
   bool get isOverdue {
     if (deadline == null) return false;

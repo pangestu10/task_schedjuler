@@ -1,120 +1,271 @@
 // lib/services/task_service.dart
+import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:flutter/foundation.dart'; // For debugPrint
+import '../core/api_config.dart';
 import '../core/models/task.dart';
-import '../core/enums/task_status.dart';
-import '../core/models/daily_snapshot.dart';
-import './database_service.dart';
+// Removed unused import: task_status.dart
 
 class TaskService {
-  final DatabaseService _dbService = DatabaseService();
+  final Dio _dio = Dio();
+  final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
 
+  // Helper to get headers with Auth Token
+  Future<Options> _getAuthOptions() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('User not logged in');
+    }
+    final token = await user.getIdToken();
+    return Options(headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    });
+  }
+
+  // GET TASKS
+  Future<List<Task>> getTasks({
+    String? status,
+    String? priority,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _dio.get(
+        '${ApiConfig.baseUrl}/getTasks',
+        queryParameters: {
+          'status': status,
+          'priority': priority,
+          'limit': limit,
+          'offset': offset,
+        },
+        options: options,
+      );
+
+      if (response.data['success'] == true) {
+        final List tasksJson = response.data['tasks'];
+        return tasksJson.map((json) => Task.fromJson(json)).toList();
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to load tasks');
+      }
+    } catch (e) {
+      debugPrint('Error fetching tasks: $e');
+      rethrow;
+    }
+  }
+
+  // Shortcut for today
   Future<List<Task>> getTasksForToday(String userId) async {
-    final allTasks = await _dbService.getUserTasks(userId);
-    final today = DateTime.now();
-    
-    return allTasks.where((task) {
-      // Tasks selected for today
-      if (task.isSelectedForToday && 
-          task.selectedDate != null &&
-          task.selectedDate!.day == today.day &&
-          task.selectedDate!.month == today.month &&
-          task.selectedDate!.year == today.year) {
-        return true;
-      }
-      
-      // Tasks with deadline today
-      if (task.deadline != null &&
-          task.deadline!.day == today.day &&
-          task.deadline!.month == today.month &&
-          task.deadline!.year == today.year) {
-        return true;
-      }
-      
-      
-      // Tasks currently active (within Start Date/Created Date and Deadline)
-      if (task.deadline != null) {
-         final startRaw = task.startDate ?? task.createdAt;
-         final start = DateTime(startRaw.year, startRaw.month, startRaw.day);
-         final end = DateTime(task.deadline!.year, task.deadline!.month, task.deadline!.day).add(const Duration(days: 1)).subtract(const Duration(seconds: 1)); // End of deadline day
-         
-         // Strictly: Start <= Today <= End
-         if (today.compareTo(start) >= 0 && today.compareTo(end) <= 0) {
-           return true;
-         }
-         
-         // Fix for simple comparison
-         if ((today.isAfter(start) || today.isAtSameMomentAs(start)) && 
-             (today.isBefore(end) || today.isAtSameMomentAs(end))) {
-           return true;
-         }
-      }
-      
-      // In-progress tasks from yesterday
-      if (task.status == TaskStatus.inProgress &&
-          (task.updatedAt?.day == today.day - 1 ||
-           task.createdAt.day == today.day - 1)) {
-        return true;
-      }
-      
-      // Tasks worked on/completed today
-      if ((task.status == TaskStatus.completed || task.status == TaskStatus.inProgress) &&
-          task.updatedAt != null &&
-          task.updatedAt!.day == today.day &&
-          task.updatedAt!.month == today.month &&
-          task.updatedAt!.year == today.year) {
-        return true;
-      }
-      
-      return false;
-    }).toList();
+    return getTasksForDate(userId, DateTime.now());
   }
 
+  // Helper: Get tasks specific for a date
+  Future<List<Task>> getTasksForDate(String userId, DateTime date) async {
+    try {
+      final allTasksHeader = await getTasks(limit: 100); 
+      final targetDate = DateTime(date.year, date.month, date.day);
+      
+      return allTasksHeader.where((task) {
+          final now = targetDate;
+          if (task.isSelectedForToday && task.selectedDate != null) {
+             final sd = task.selectedDate!;
+             return sd.year == now.year && sd.month == now.month && sd.day == now.day;
+          }
+          if (task.deadline != null &&
+              task.deadline!.year == now.year &&
+              task.deadline!.month == now.month &&
+              task.deadline!.day == now.day) {
+            return true;
+          }
+          return false;
+      }).toList();
+    } catch (e) {
+      debugPrint('Error getTasksForDate: $e');
+      return [];
+    }
+  }
+  
   Future<void> generateDailySnapshot(String userId) async {
-    final tasks = await getTasksForToday(userId);
-    final taskIds = tasks.where((t) => t.id != null).map((t) => t.id!).toList();
-    final totalPlannedMinutes = tasks.fold(
-        0, (sum, task) => sum + task.estimatedMinutes);
-    
-    // Calculate actual minutes from today
-    final today = DateTime.now();
-    final todayRecords = await _dbService.getTodayTimerRecords(userId, today);
-    final totalActualMinutes = todayRecords.fold(
-        0, (sum, record) => sum + (record.durationSeconds ~/ 60));
-    
-    final completedTaskCount = tasks
-        .where((task) => task.status == TaskStatus.completed)
-        .length;
-    
-    final snapshot = DailySnapshot(
-      userId: userId,
-      date: DateTime(today.year, today.month, today.day),
-      taskIds: taskIds,
-      totalPlannedMinutes: totalPlannedMinutes,
-      totalActualMinutes: totalActualMinutes,
-      completedTaskCount: completedTaskCount,
-      totalTaskCount: tasks.length,
-    );
-    
-    await _dbService.saveDailySnapshot(snapshot);
+    // Logic should handle by Backend, but we can call an endpoint if needed.
+    // For now preventing it from crashing or doing nothing useful.
+    try {
+      final options = await _getAuthOptions();
+      await _dio.post(
+        '${ApiConfig.baseUrl}/generateDailySnapshot',
+        data: {'userId': userId},
+        options: options,
+      );
+    } catch (e) {
+      debugPrint('Error generating daily snapshot (ignorable): $e');
+    }
   }
 
-  Future<List<Task>> getOverdueTasks(String userId) async {
-    final allTasks = await _dbService.getUserTasks(userId);
-    final now = DateTime.now();
-    
-    return allTasks.where((task) {
-      return task.deadline != null &&
-             task.deadline!.isBefore(now) &&
-             task.status != TaskStatus.completed &&
-             task.status != TaskStatus.cancelled;
-    }).toList();
+  // CREATE TASK
+  Future<Task> createTask(Task task) async {
+    try {
+      final options = await _getAuthOptions();
+      final taskMap = task.toJson();
+      // Remove fields that backend does not accept during creation
+      taskMap.remove('id');
+      taskMap.remove('status'); // Backend defaults to 'todo'
+      taskMap.remove('ownerId'); // Backend calculates owner
+
+      // NOTE: userId IS required by backend schema (it validates body.userId exists and matches token)
+      
+      final response = await _dio.post(
+        '${ApiConfig.baseUrl}/createTask',
+        data: taskMap,
+        options: options,
+      );
+
+      if (response.statusCode == 201 && response.data['success'] == true) {
+        return Task.fromJson(response.data['task']);
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to create task');
+      }
+    } catch (e) {
+      if (e is DioException) {
+         debugPrint('Error creating task: ${e.response?.statusCode} - ${e.response?.data}');
+      } else {
+         debugPrint('Error creating task: $e');
+      }
+      rethrow;
+    }
   }
 
-  Future<List<Task>> getHighPriorityTasks(String userId) async {
-    final allTasks = await _dbService.getUserTasks(userId);
-    return allTasks
-        .where((task) => 
-            task.priority.index >= 2 && // high or critical
-            task.status != TaskStatus.completed)
-        .toList();
+  // UPDATE TASK
+  Future<void> updateTask(Task task) async {
+    if (task.id == null) throw Exception('Task ID is required for update');
+    try {
+      final options = await _getAuthOptions();
+      final data = task.toJson();
+      data['taskId'] = task.id; // Add ID to body as potential fallback
+      
+      final response = await _dio.post(
+        '${ApiConfig.baseUrl}/updateTask',
+        queryParameters: {'taskId': task.id},
+        data: data,
+        options: options,
+      );
+
+      if (response.data['success'] != true) {
+         throw Exception(response.data['error'] ?? 'Failed to update task');
+      }
+    } catch (e) {
+      debugPrint('Error updating task: $e');
+      if (e is DioException) {
+        debugPrint('Dio Error Data: ${e.response?.data}');
+      }
+      rethrow;
+    }
+  }
+
+  // DELETE TASK
+  Future<void> deleteTask(String taskId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _dio.delete(
+        '${ApiConfig.baseUrl}/deleteTask',
+        queryParameters: {'taskId': taskId},
+        options: options,
+      );
+      
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error']);
+      }
+    } catch (e) {
+      debugPrint('Error deleting task: $e');
+      rethrow;
+    }
+  }
+
+  // INVITE USER
+  Future<void> inviteUser(String taskId, String email) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _dio.post(
+        '${ApiConfig.baseUrl}/inviteUserToTask',
+        data: {
+          'taskId': taskId,
+          'email': email,
+        },
+        options: options,
+      );
+
+      if (response.data['success'] != true) {
+        throw Exception(response.data['error']);
+      }
+    } catch (e) {
+      if (e is DioException && e.response != null) {
+        throw Exception(e.response!.data['error'] ?? 'Failed to invite user');
+      }
+      throw Exception('Failed to invite user: $e');
+    }
+  }
+
+  // REMOVE COLLABORATOR
+  Future<void> removeCollaborator(String taskId, String userIdToRemove) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _dio.post(
+        '${ApiConfig.baseUrl}/removeCollaborator',
+        data: {
+          'taskId': taskId,
+          'userId': userIdToRemove,
+        },
+        options: options,
+      );
+
+       if (response.data['success'] != true) {
+        throw Exception(response.data['error']);
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // RESPOND TO INVITATION
+  Future<void> respondToInvitation(String taskId, String responseAction) async {
+    // responseAction: 'accept' or 'decline'
+    try {
+      final options = await _getAuthOptions();
+      final response = await _dio.post(
+        '${ApiConfig.baseUrl}/respondToInvitation',
+        data: {
+          'taskId': taskId,
+          'response': responseAction,
+        },
+        options: options,
+      );
+
+       if (response.data['success'] != true) {
+        throw Exception(response.data['error']);
+      }
+    } catch (e) {
+      if (e is DioException && e.response != null) {
+        throw Exception(e.response!.data['error'] ?? 'Failed to respond to invitation');
+      }
+      rethrow;
+    }
+  }
+  // GET PUBLIC USER PROFILE
+  Future<Map<String, dynamic>> getPublicUserProfile(String userId) async {
+    try {
+      final options = await _getAuthOptions();
+      final response = await _dio.get(
+        '${ApiConfig.baseUrl}/getPublicUserProfile',
+        queryParameters: {'userId': userId},
+        options: options,
+      );
+
+      if (response.data['success'] == true) {
+        return Map<String, dynamic>.from(response.data['profile']);
+      }
+      return {'displayName': 'Unknown User', 'email': ''};
+    } catch (e) {
+      debugPrint('Error fetch user profile: $e');
+      return {'displayName': 'Unknown', 'email': ''};
+    }
   }
 }

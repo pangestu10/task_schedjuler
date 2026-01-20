@@ -4,6 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'firebase_options.dart';
 import 'services/alarm_service.dart';
 import 'services/ai_service.dart';
@@ -13,16 +16,21 @@ import 'providers/task_provider.dart';
 import 'providers/timer_provider.dart';
 import 'providers/routine_provider.dart';
 import 'providers/analytics_provider.dart';
+import 'core/utils/navigator_key.dart';
 import 'ui/pages/login_page.dart';
 import 'ui/pages/register_page.dart';
 import 'ui/pages/routine_settings_page.dart';
 import 'ui/pages/timer_page.dart';
 import 'ui/pages/daily_task_page.dart';
 import 'ui/pages/insight_page.dart';
+import 'ui/pages/onboarding_page.dart';
+import 'ui/pages/notification_page.dart'; // Import NotificationPage
+import 'providers/notification_provider.dart'; // Import NotificationProvider
 import 'core/theme/app_theme.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
   // Initialize Firebase with platform-specific options
   await Firebase.initializeApp(
@@ -37,12 +45,19 @@ void main() async {
   } catch (e) {
     debugPrint('Main: Failed to initialize AlarmService: $e');
   }
+
+  // Check Onboarding
+  final prefs = await SharedPreferences.getInstance();
+  final bool seenOnboarding = prefs.getBool('seen_onboarding') ?? false;
   
-  runApp(const MyApp());
+  runApp(MyApp(seenOnboarding: seenOnboarding));
+  FlutterNativeSplash.remove();
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool seenOnboarding;
+
+  const MyApp({super.key, required this.seenOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +68,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TimerProvider()),
         ChangeNotifierProvider(create: (_) => RoutineProvider()),
         ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
         Provider(create: (_) {
           final aiService = AIService();
           aiService.setApiKey(ApiKeys.groqApiKey);
@@ -60,17 +76,22 @@ class MyApp extends StatelessWidget {
         }),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'Daily Task Insight',
         theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.system,
         debugShowCheckedModeBanner: false,
-        home: const AuthWrapper(),
+        home: seenOnboarding ? const AuthWrapper() : const OnboardingPage(),
         routes: {
+          '/wrapper': (context) => const AuthWrapper(),
           '/login': (context) => const LoginPage(),
           '/register': (context) => const RegisterPage(),
           '/settings': (context) => const RoutineSettingsPage(),
           '/tasks': (context) => const DailyTaskPage(),
           '/timer': (context) => const TimerPage(),
           '/insights': (context) => const InsightPage(),
+          '/notifications': (context) => const NotificationPage(),
         },
       ),
     );
@@ -127,10 +148,10 @@ class _MainAppState extends State<MainApp> {
       body: _pages[_selectedIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
+          color: Theme.of(context).navigationBarTheme.backgroundColor,
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -168,4 +189,3 @@ class _MainAppState extends State<MainApp> {
     );
   }
 }
-

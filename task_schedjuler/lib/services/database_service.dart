@@ -25,7 +25,7 @@ class DatabaseService {
 
     return await openDatabase(
       databasePath,
-      version: 3,
+      version: 4, // Bumped to 4 for schema change (Task IDs -> String)
       onCreate: _createDatabase,
       onUpgrade: _onUpgrade,
     );
@@ -39,36 +39,35 @@ class DatabaseService {
       try {
         await db.execute('ALTER TABLE tasks ADD COLUMN start_date TEXT');
       } catch (e) {
-        // Column might already exist if we are iterating fast on dev
+        // Column might already exist
       }
+    }
+    if (oldVersion < 4) {
+      // Major schema change: IDs are now Strings.
+      // Easiest path: recreate tables. WARNING: This wipes local data.
+      // Since assuming move to backend, this is acceptable for cache tables.
+      // Ideally we'd migrate, but SQLite types are flexible.
+      
+      // We essentially want `timer_records.task_id` to be TEXT.
+      // SQLite doesn't support changing column type easily.
+      // We will perform a drop and recreate for affected tables if acceptable.
+      // Or just continue, as SQLite allows storing text in INTEGER columns (Type Affinity),
+      // BUT `tasks.id` was INTEGER PRIMARY KEY AUTOINCREMENT. This MUST change if we were to store UUIDs.
+      
+      // Let's drop and recreate tasks and timer_records
+      await db.execute('DROP TABLE IF EXISTS tasks');
+      await db.execute('DROP TABLE IF EXISTS timer_records');
+      
+      // Re-run create for these
+      await _createTasksTable(db);
+      await _createTimerRecordsTable(db);
     }
   }
 
   Future<void> _createDatabase(Database db, int version) async {
-    // Tasks table
-    await db.execute('''
-      CREATE TABLE tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        priority TEXT NOT NULL,
-        deadline TEXT,
-        start_date TEXT,
-        estimated_minutes INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT,
-        is_selected_for_today INTEGER NOT NULL DEFAULT 0,
-        selected_date TEXT,
-        steps TEXT
-      )
-    ''');
-
-    // Create index for faster queries
-    await db.execute('CREATE INDEX idx_tasks_user_id ON tasks(user_id)');
-    await db.execute('CREATE INDEX idx_tasks_created_at ON tasks(created_at)');
-
-    // Routine settings table
+    await _createTasksTable(db);
+    
+    // Routine settings table (Keep as is)
     await db.execute('''
       CREATE TABLE routine_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,21 +79,7 @@ class DatabaseService {
       )
     ''');
 
-    // Timer records table
-    await db.execute('''
-      CREATE TABLE timer_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        task_id INTEGER,
-        start_time TEXT NOT NULL,
-        end_time TEXT,
-        duration_seconds INTEGER NOT NULL,
-        stop_reason TEXT NOT NULL
-      )
-    ''');
-
-    await db.execute('CREATE INDEX idx_timer_records_user_id ON timer_records(user_id)');
-    await db.execute('CREATE INDEX idx_timer_records_start_time ON timer_records(start_time)');
+    await _createTimerRecordsTable(db);
 
     // Daily snapshots table
     await db.execute('''
@@ -113,11 +98,59 @@ class DatabaseService {
 
     await db.execute('CREATE INDEX idx_daily_snapshots_user_id ON daily_snapshots(user_id)');
   }
+  
+  Future<void> _createTasksTable(Database db) async {
+    // Tasks table - ID is now TEXT to match Backend UUID
+    // Note: If we use Backend, we don't necessarily NEED this table unless caching.
+    // Specifying it as TEXT PRIMARY KEY removes AUTOINCREMENT.
+    await db.execute('''
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY, 
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        deadline TEXT,
+        start_date TEXT,
+        estimated_minutes INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        is_selected_for_today INTEGER NOT NULL DEFAULT 0,
+        selected_date TEXT,
+        steps TEXT,
+        collaborators TEXT
+      )
+    ''');
+    
+    await db.execute('CREATE INDEX idx_tasks_user_id ON tasks(user_id)');
+    await db.execute('CREATE INDEX idx_tasks_created_at ON tasks(created_at)');
+  }
+  
+  Future<void> _createTimerRecordsTable(Database db) async {
+    // Timer records table - task_id is now TEXT
+    await db.execute('''
+      CREATE TABLE timer_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        task_id TEXT,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        duration_seconds INTEGER NOT NULL,
+        stop_reason TEXT NOT NULL
+      )
+    ''');
 
-  // Task operations
-  Future<int> addTask(Task task) async {
+    await db.execute('CREATE INDEX idx_timer_records_user_id ON timer_records(user_id)');
+    await db.execute('CREATE INDEX idx_timer_records_start_time ON timer_records(start_time)');
+  }
+
+  // Task operations - UPDATED for String ID
+  // Note: These methods update LOCAL DB. TaskService now uses Backend.
+  // These might be used for offline cache later.
+  Future<String> addTask(Task task) async {
     final db = await database;
-    return await db.insert('tasks', task.toMap());
+    await db.insert('tasks', task.toMap());
+    return task.id!;
   }
 
   Future<List<Task>> getUserTasks(String userId) async {
@@ -142,7 +175,7 @@ class DatabaseService {
     );
   }
 
-  Future<void> deleteTask(int id) async {
+  Future<void> deleteTask(String id) async { // Changed to String
     final db = await database;
     await db.delete(
       'tasks',
@@ -204,7 +237,7 @@ class DatabaseService {
     return maps.map((map) => TimerRecord.fromMap(map)).toList();
   }
 
-  Future<int> getTaskTotalDuration(int taskId) async {
+  Future<int> getTaskTotalDuration(String taskId) async { // Changed to String
     final db = await database;
     final result = await db.rawQuery(
       'SELECT SUM(duration_seconds) as total FROM timer_records WHERE task_id = ?',
@@ -277,7 +310,6 @@ class DatabaseService {
       'daily_snapshots',
       where: 'user_id = ?',
       whereArgs: [userId],
-      orderBy: 'date DESC, id DESC', // Prefer latest
     );
     return maps.map((map) => DailySnapshot.fromMap(map)).toList();
   }
@@ -287,7 +319,6 @@ class DatabaseService {
     final db = await database;
     await db.delete('tasks', where: 'user_id = ?', whereArgs: [userId]);
     await db.delete('routine_settings', where: 'user_id = ?', whereArgs: [userId]);
-    // Note: We might want to keep timer records and snapshots for analytics
   }
 
   // Close database

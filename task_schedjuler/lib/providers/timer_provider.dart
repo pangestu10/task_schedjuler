@@ -12,12 +12,12 @@ class TimerProvider with ChangeNotifier {
   
   TimerStatus _status = TimerStatus.idle;
   int _elapsedSeconds = 0;
-  int? _currentTaskId;
+  String? _currentTaskId; // Changed int? to String?
   String? _currentUserId;
   
   TimerStatus get status => _status;
   int get elapsedSeconds => _elapsedSeconds;
-  int? get currentTaskId => _currentTaskId;
+  String? get currentTaskId => _currentTaskId; // Changed getter type
   
   TimerProvider() {
     _timerService.elapsedSecondsStream.listen((seconds) {
@@ -26,12 +26,14 @@ class TimerProvider with ChangeNotifier {
     });
   }
   
-  Future<void> selectTask(int taskId) async {
+  // Changed arg to String
+  Future<void> selectTask(String taskId) async {
     _elapsedSeconds = await _dbService.getTaskTotalDuration(taskId);
     notifyListeners();
   }
 
-  Future<void> startTimer({required String userId, int? taskId}) async {
+  // Changed arg to String
+  Future<void> startTimer({required String userId, String? taskId}) async {
     int initialDuration = 0;
     if (taskId != null) {
       initialDuration = await _dbService.getTaskTotalDuration(taskId);

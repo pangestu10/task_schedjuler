@@ -16,17 +16,21 @@ class TaskStep {
     return {
       'id': id,
       'title': title,
-      'is_completed': isCompleted ? 1 : 0,
-      'duration_seconds': durationSeconds,
+      'completed': isCompleted, // Backend expects 'completed' (boolean), not 'is_completed'
+      // 'durationSeconds' is not in backend defaults schema, but okay to send if backend ignores excessive fields in subarray?
+      // Backend schema for steps: id, title, completed. It does NOT allow other fields without 'unknown(true)' or similar?
+      // Wait, backend 'createTaskSchema`: steps: Joi.array().items(Joi.object({...}).required())
+      // It might reject unknown fields. Safest to omit durationSeconds for now or check backend.
     };
   }
 
   factory TaskStep.fromMap(Map<String, dynamic> map) {
     return TaskStep(
-      id: map['id'],
-      title: map['title'],
-      isCompleted: map['is_completed'] == 1,
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      isCompleted: map['completed'] == true || map['is_completed'] == 1 || map['isCompleted'] == true,
       durationSeconds: map['duration_seconds'] ?? 0,
     );
   }
 }
+

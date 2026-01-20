@@ -8,7 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../core/enums/timer_status.dart';
 
 class TimerWidget extends StatelessWidget {
-  final int? taskId;
+  final String? taskId; // Changed from int? to String?
   final String taskTitle;
 
   const TimerWidget({

@@ -4,7 +4,7 @@ class DailySnapshot {
   int? id;
   String userId;
   DateTime date;
-  List<int> taskIds;
+  List<String> taskIds; // Changed from List<int> to List<String>
   int totalPlannedMinutes;
   int totalActualMinutes;
   int completedTaskCount;
@@ -26,7 +26,7 @@ class DailySnapshot {
     int? id,
     String? userId,
     DateTime? date,
-    List<int>? taskIds,
+    List<String>? taskIds,
     int? totalPlannedMinutes,
     int? totalActualMinutes,
     int? completedTaskCount,
@@ -62,8 +62,8 @@ class DailySnapshot {
   factory DailySnapshot.fromMap(Map<String, dynamic> map) {
     final taskIdsString = map['task_ids'] as String? ?? '';
     final taskIds = taskIdsString.isNotEmpty 
-        ? taskIdsString.split(',').map((id) => int.parse(id.trim())).toList()
-        : <int>[];
+        ? taskIdsString.split(',').map((id) => id.trim()).toList()
+        : <String>[];
     
     return DailySnapshot(
       id: map['id']?.toInt(),

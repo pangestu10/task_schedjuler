@@ -29,7 +29,13 @@ class _RoutineSettingsPageState extends State<RoutineSettingsPage> {
     _wakeTime = const TimeOfDay(hour: 7, minute: 0);
     _sleepTime = const TimeOfDay(hour: 23, minute: 0);
     _workTargetController.text = '480'; // 8 hours
-    _loadSettings();
+    _workTargetController.text = '480'; // 8 hours
+    
+    // Fix: Move _loadSettings to post-frame callback to avoid build-phase exceptions
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSettings();
+    });
+    
     _requestPermissions();
   }
 
@@ -139,8 +145,9 @@ class _RoutineSettingsPageState extends State<RoutineSettingsPage> {
         dailyWorkTargetMinutes: workTarget,
       );
       
+      
       // Set alarm for wake time
-      final scheduledTime = await AlarmService.setDailyAlarm(wakeDateTime);
+      final scheduledTime = await AlarmService.setDailyAlarm(wakeDateTime, userId: user.uid);
       
       // ignore: use_build_context_synchronously
       if (!mounted) return;
@@ -237,9 +244,18 @@ class _RoutineSettingsPageState extends State<RoutineSettingsPage> {
             ),
             const SizedBox(height: 24),
             
-            Text(
-              'Routine Settings',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Routine Settings',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Text(
+                  'Zone: ${AlarmService.debugTimezone}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
 
@@ -281,6 +297,20 @@ class _RoutineSettingsPageState extends State<RoutineSettingsPage> {
               ),
             ),
             const SizedBox(height: 20),
+            const SizedBox(height: 20),
+            
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _saveSettings,
+                child: _isSaving
+                    ? const CircularProgressIndicator()
+                    : const Text('Save Settings'),
+              ),
+            ),
+            const SizedBox(height: 30),
+
             Text(
               'Tips:',
               style: Theme.of(context).textTheme.titleMedium,
@@ -290,45 +320,7 @@ class _RoutineSettingsPageState extends State<RoutineSettingsPage> {
             const Text('• Ensure 7-9 hours of sleep'),
             const Text('• Align wake time with natural rhythm'),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: () async {
-                try {
-                  await AlarmService.testAlarm();
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Notifikasi dijadwalkan (Exact)! Tunggu 5 detik... ⏳')),
-                  );
-                } catch (e) {
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              },
-              icon: const Icon(Icons.timer),
-              label: const Text('Test Jadwal (5 Detik)'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 45),
-                foregroundColor: Colors.blue,
-              ),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                await AlarmService.checkBatteryOptimization();
-                // ignore: use_build_context_synchronously
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PILIH "Unrestricted" atau "Don\'t Optimize" untuk aplikasi ini.')),
-                );
-              },
-              icon: const Icon(Icons.battery_alert),
-              label: const Text('Solusi Jika Masih Belum Muncul'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 45),
-                foregroundColor: Colors.red,
-              ),
-            ),
-            const SizedBox(height: 12),
+      
             Card(
               color: Colors.red.shade50,
               child: ListTile(
@@ -359,20 +351,10 @@ class _RoutineSettingsPageState extends State<RoutineSettingsPage> {
                     // ignore: use_build_context_synchronously
                     final navigator = Navigator.of(context);
                     await authProvider.logout();
-                    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
+                    // Reset to root (AuthWrapper)
+                    navigator.pushNamedAndRemoveUntil('/', (route) => false);
                   }
                 },
-              ),
-            ),
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _saveSettings,
-                child: _isSaving
-                    ? const CircularProgressIndicator()
-                    : const Text('Save Settings'),
               ),
             ),
           ],
